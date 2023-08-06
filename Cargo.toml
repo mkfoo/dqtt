@@ -1,0 +1,8 @@
+[package]
+name = "dqtt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nix = { version = "0.26", default-features = false, features = [ "event" ] }
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
