@@ -252,16 +252,14 @@ impl Client {
         }
     }
 
-    pub fn subscribe(&mut self, topic: &[u8]) {
+    pub fn subscribe(&mut self, topic: &[u8]) -> std::io::Result<()> {
         let writer = self.stream.get_mut();
-        writer.write_all(&[&[SUB], topic, &[END]].concat()).unwrap();
+        writer.write_all(&[&[SUB], topic, &[END]].concat())
     }
 
-    pub fn publish(&mut self, topic: &[u8], payload: &[u8]) {
+    pub fn publish(&mut self, topic: &[u8], payload: &[u8]) -> std::io::Result<()> {
         let writer = self.stream.get_mut();
-        writer
-            .write_all(&[&[PUB], topic, &[SEP], payload, &[END]].concat())
-            .unwrap();
+        writer.write_all(&[&[PUB], topic, &[SEP], payload, &[END]].concat())
     }
 
     fn change_mode(&mut self, timeout: i32) -> std::io::Result<()> {
@@ -295,27 +293,27 @@ impl Client {
         Ok(())
     }
 
-    pub fn wait(&mut self, timeout: i32) -> Option<&[u8]> {
-        self.change_mode(timeout).unwrap();
+    pub fn wait(&mut self, timeout: i32) -> std::io::Result<Option<&[u8]>> {
+        self.change_mode(timeout)?;
         self.buf.clear();
 
         match self.stream.read_until(END, &mut self.buf) {
-            Err(e) if e.kind() == ErrorKind::WouldBlock => return None,
-            Err(e) => panic!("{e}"),
-            Ok(0) => panic!("socket closed unexpectedly"),
+            Err(e) if e.kind() == ErrorKind::WouldBlock => return Ok(None),
+            Err(e) => return Err(e),
+            Ok(0) => return Err(std::io::Error::from(ErrorKind::UnexpectedEof)),
             _ => {}
         }
 
         if self.buf.ends_with(&[END]) {
             self.buf.pop().unwrap();
-            Some(&self.buf)
+            Ok(Some(&self.buf))
         } else {
-            None
+            Ok(None)
         }
     }
 
     pub fn expect(&mut self, expected: &[u8], timeout: i32) {
-        let msg = self.wait(timeout);
+        let msg = self.wait(timeout).unwrap();
         let exp = Some(expected);
         assert_eq!(exp, msg);
     }

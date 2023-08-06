@@ -23,14 +23,14 @@ mod tests {
         thread::sleep(Duration::from_millis(200));
         let c1 = thread::spawn(|| {
             let mut client = Client::connect("./sock");
-            client.subscribe(b"topic1");
+            client.subscribe(b"topic1").unwrap();
             client.expect(b"message1", 0);
             thread::sleep(Duration::from_millis(200));
         });
         thread::sleep(Duration::from_millis(200));
         let c2 = thread::spawn(|| {
             let mut client = Client::connect("./sock");
-            client.publish(b"topic1", b"message1");
+            client.publish(b"topic1", b"message1").unwrap();
             thread::sleep(Duration::from_millis(200));
         });
         c2.join().unwrap();
