@@ -18,7 +18,7 @@ const MAX_TOPICS: usize = std::mem::size_of::<Topic>() * 8;
 const MAX_TOPIC_BYTES: u64 = 128;
 const MAX_PAYLOAD_BYTES: u64 = 1024;
 const MAX_EVENTS: usize = 128;
-const READ_TIMEOUT: u64 = 100;
+const READ_TIMEOUT: u64 = 500;
 const MAX_FD: RawFd = 524288;
 
 const NUL: u8 = 0;
@@ -161,29 +161,49 @@ impl Server {
                         .take(MAX_TOPIC_BYTES)
                         .read_until(END, &mut self.topic)?;
 
-                    if self.topic.ends_with(&[END]) {
-                        self.topic.pop().unwrap();
-                        break Ok(SUB);
+                    if self.topic.contains(&SEP) {
+                        warn!("invalid topic (SUB) (fd: {}, topic: {:?})", fd, &self.topic);
+                        break Ok(NUL);
                     }
 
-                    warn!("truncated message (SUB) (fd: {})", fd);
-                    break Ok(NUL);
+                    if !self.topic.ends_with(&[END]) {
+                        warn!(
+                            "truncated message (SUB) (fd: {}, topic: {:?})",
+                            fd, &self.topic
+                        );
+                        break Ok(NUL);
+                    }
+
+                    self.topic.pop().unwrap();
+                    break Ok(SUB);
                 }
                 PUB => {
                     stream
                         .take(MAX_TOPIC_BYTES)
                         .read_until(SEP, &mut self.topic)?;
+
+                    if !self.topic.ends_with(&[SEP]) {
+                        warn!(
+                            "truncated message (PUB) (fd: {}, topic: {:?})",
+                            fd, &self.topic
+                        );
+                        break Ok(NUL);
+                    }
+
                     stream
                         .take(MAX_PAYLOAD_BYTES)
                         .read_until(END, &mut self.payload)?;
 
-                    if self.topic.ends_with(&[SEP]) && self.payload.ends_with(&[END]) {
-                        self.topic.pop().unwrap();
-                        break Ok(PUB);
+                    if !self.payload.ends_with(&[END]) {
+                        warn!(
+                            "truncated message (PUB) (fd: {}, payload: {:?})",
+                            fd, &self.payload
+                        );
+                        break Ok(NUL);
                     }
 
-                    warn!("truncated message (PUB) (fd: {})", fd);
-                    break Ok(NUL);
+                    self.topic.pop().unwrap();
+                    break Ok(PUB);
                 }
                 NUL => break Ok(NUL),
                 _ => {}
@@ -208,7 +228,7 @@ impl Server {
         let (ref mut subs, _) = self.conns.get_mut(&fd).unwrap();
         *subs |= flag;
         debug!(
-            "subscribe (fd: {}, topic: {:?})",
+            "subscribe (fd: {}, topic: {})",
             fd,
             String::from_utf8_lossy(&self.topic)
         );
@@ -253,11 +273,20 @@ impl Client {
     }
 
     pub fn subscribe(&mut self, topic: &[u8]) -> std::io::Result<()> {
+        assert!(
+            !topic.contains(&SEP) && !topic.contains(&END),
+            "invalid topic"
+        );
         let writer = self.stream.get_mut();
         writer.write_all(&[&[SUB], topic, &[END]].concat())
     }
 
     pub fn publish(&mut self, topic: &[u8], payload: &[u8]) -> std::io::Result<()> {
+        assert!(
+            !topic.contains(&SEP) && !topic.contains(&END),
+            "invalid topic"
+        );
+        assert!(!payload.contains(&END), "invalid payload");
         let writer = self.stream.get_mut();
         writer.write_all(&[&[PUB], topic, &[SEP], payload, &[END]].concat())
     }
