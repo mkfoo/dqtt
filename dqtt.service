@@ -1,0 +1,13 @@
+[Unit]
+Description=DQTT Server 0.1.0
+
+[Service]
+Type=simple
+User=dqtt
+Group=dqtt
+Restart=always
+RuntimeDirectory=dqtt
+ExecStart=/usr/bin/dqtt %t/dqtt/sock
+
+[Install]
+WantedBy=multi-user.target

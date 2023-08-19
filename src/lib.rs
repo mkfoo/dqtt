@@ -3,8 +3,10 @@ use nix::sys::epoll::{
     epoll_create1, epoll_ctl, epoll_wait, EpollCreateFlags, EpollEvent, EpollFlags, EpollOp,
 };
 use std::collections::{hash_map::Entry, HashMap};
+use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 use std::thread;
@@ -31,6 +33,7 @@ pub fn run<P: AsRef<Path>>(sockpath: P) -> Result<()> {
     self::logger::init();
     let _ = std::fs::remove_file(&sockpath);
     let listener = UnixListener::bind(&sockpath)?;
+    fs::set_permissions(&sockpath, fs::Permissions::from_mode(0o770))?;
     let epfd = epoll_create1(EpollCreateFlags::EPOLL_CLOEXEC)?;
     let server = thread::spawn(move || Server::run(epfd));
     assert!(!server.is_finished());
