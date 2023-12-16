@@ -7,6 +7,7 @@ User=dqtt
 Group=dqtt
 Restart=always
 RuntimeDirectory=dqtt
+UMask=007
 ExecStart=/usr/bin/dqtt %t/dqtt/sock
 
 [Install]
